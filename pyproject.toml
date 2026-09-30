@@ -1,0 +1,18 @@
+[project]
+name = "dpmpp-2m-sharp"
+version = "1.0.0"
+description = "A better sampler for Qwen Image 2.1: DPM++ 2M with adjustable denoised-history sharpening."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+dependencies = []
+classifiers = ["Operating System :: OS Independent"]
+
+[project.urls]
+Repository = "https://github.com/envy-ai/ComfyUI-DPMpp-2M-Sharp"
+Documentation = "https://github.com/envy-ai/ComfyUI-DPMpp-2M-Sharp#readme"
+"Bug Tracker" = "https://github.com/envy-ai/ComfyUI-DPMpp-2M-Sharp/issues"
+
+[tool.comfy]
+PublisherId = "envy-ai"
+DisplayName = "DPM++ 2M Sharp for Qwen Image 2.1"
