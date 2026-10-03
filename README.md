@@ -39,7 +39,7 @@ For manual SEEDS_2 controls, add **Sampler SEEDS_2 Sharp** and connect its `SAMP
 
 Use SamplerCustomAdvanced's `output` for NC comparisons; `denoised_output` comes from the preview prediction rather than the returned NC latent.
 
-The node ID remains `SamplerDPMPP_2M_Sharp`. Existing workflows default to `dpmpp_2m_sharp`. This package exposes a sampler provider node and adds `seeds_2_sharp` to the standard KSampler dropdown with native SEEDS_2 defaults and `sharpness = 0.15`. The matching RES4LYF update also adds its four RES choices to the standard KSampler dropdown, where Sharp variants use `sharpness = 0.15`.
+The node ID remains `SamplerDPMPP_2M_Sharp`. Existing workflows default to `dpmpp_2m_sharp`. This package exposes sampler provider nodes and adds `dpmpp_2m_sde_gpu_sharp` and `seeds_2_sharp` to the standard KSampler dropdown with native sampler defaults and `sharpness = 0.15`. The matching RES4LYF update also adds its four RES choices to the standard KSampler dropdown, where Sharp variants use `sharpness = 0.15`.
 
 ## License and credits
 

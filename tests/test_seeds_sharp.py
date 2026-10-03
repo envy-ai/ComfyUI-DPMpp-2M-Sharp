@@ -194,18 +194,26 @@ def test_seeds_sharp_node_forwards_native_options_and_registers_sampler(samplers
         "solver_type": "phi_2", "eta": 0.4, "s_noise": 0.3, "r": 0.7, "sharpness": 0.375,
     }
 
-    was_k_sampler = "seeds_2_sharp" in comfy.samplers.KSAMPLER_NAMES
-    was_sampler = "seeds_2_sharp" in comfy.samplers.SAMPLER_NAMES
-    monkeypatch.setattr(samplers.sampling, "sample_seeds_2_sharp", module.sample_seeds_2_sharp, raising=False)
+    functions = {
+        "dpmpp_2m_sde_gpu_sharp": module.sample_dpmpp_2m_sde_gpu_sharp,
+        "seeds_2_sharp": module.sample_seeds_2_sharp,
+    }
+    original_k_names = set(comfy.samplers.KSAMPLER_NAMES)
+    original_names = set(comfy.samplers.SAMPLER_NAMES)
+    for name in functions:
+        monkeypatch.setattr(samplers.sampling, "sample_" + name, None, raising=False)
     try:
         asyncio.run(module.DPMPP2MSharpExtension().on_load())
         asyncio.run(module.DPMPP2MSharpExtension().on_load())
-        assert comfy.samplers.KSAMPLER_NAMES.count("seeds_2_sharp") == 1
-        assert comfy.samplers.SAMPLER_NAMES.count("seeds_2_sharp") == 1
-        registered = comfy.samplers.sampler_object("seeds_2_sharp")
-        assert registered.sampler_function is module.sample_seeds_2_sharp
+        for name, function in functions.items():
+            assert comfy.samplers.KSAMPLER_NAMES.count(name) == 1
+            assert comfy.samplers.SAMPLER_NAMES.count(name) == 1
+            assert comfy.samplers.KSampler.SAMPLERS.count(name) == 1
+            registered = comfy.samplers.sampler_object(name)
+            assert registered.sampler_function is function
     finally:
-        if not was_k_sampler:
-            comfy.samplers.KSAMPLER_NAMES.remove("seeds_2_sharp")
-        if not was_sampler:
-            comfy.samplers.SAMPLER_NAMES.remove("seeds_2_sharp")
+        for name in functions:
+            if name not in original_k_names:
+                comfy.samplers.KSAMPLER_NAMES.remove(name)
+            if name not in original_names:
+                comfy.samplers.SAMPLER_NAMES.remove(name)

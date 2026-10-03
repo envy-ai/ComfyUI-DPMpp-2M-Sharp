@@ -220,11 +220,12 @@ class SamplerSEEDS2Sharp(io.ComfyNode):
 
 class DPMPP2MSharpExtension(ComfyExtension):
     async def on_load(self):
-        sampling.sample_seeds_2_sharp = sample_seeds_2_sharp
-        if "seeds_2_sharp" not in comfy.samplers.KSAMPLER_NAMES:
-            comfy.samplers.KSAMPLER_NAMES.append("seeds_2_sharp")
-        if "seeds_2_sharp" not in comfy.samplers.SAMPLER_NAMES:
-            comfy.samplers.SAMPLER_NAMES.append("seeds_2_sharp")
+        for name, function in (("dpmpp_2m_sde_gpu_sharp", sample_dpmpp_2m_sde_gpu_sharp), ("seeds_2_sharp", sample_seeds_2_sharp)):
+            setattr(sampling, "sample_" + name, function)
+            if name not in comfy.samplers.KSAMPLER_NAMES:
+                comfy.samplers.KSAMPLER_NAMES.append(name)
+            if name not in comfy.samplers.SAMPLER_NAMES:
+                comfy.samplers.SAMPLER_NAMES.append(name)
 
     async def get_node_list(self):
         return [SamplerDPMPP_2M_Sharp, SamplerSEEDS2Sharp]
