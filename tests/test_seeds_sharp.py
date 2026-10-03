@@ -1,6 +1,7 @@
 import importlib.util
 from pathlib import Path
 import types
+import sys
 
 import pytest
 import torch
@@ -19,6 +20,7 @@ def samplers():
 
     spec = importlib.util.spec_from_file_location("dpmpp_2m_sharp_nodes_for_seeds", ROOT / "__init__.py")
     module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
 
     class EpsSampling(comfy.model_sampling.ModelSamplingDiscrete, comfy.model_sampling.EPS):
@@ -197,6 +199,10 @@ def test_seeds_sharp_node_forwards_native_options_and_registers_sampler(samplers
     functions = {
         "dpmpp_2m_sde_gpu_sharp": module.sample_dpmpp_2m_sde_gpu_sharp,
         "seeds_2_sharp": module.sample_seeds_2_sharp,
+        "res_2s_nc": module.sample_res_2s_nc,
+        "res_2m_nc": module.sample_res_2m_nc,
+        "res_2s_nc_sharp": module.sample_res_2s_nc_sharp,
+        "res_2m_nc_sharp": module.sample_res_2m_nc_sharp,
     }
     original_k_names = set(comfy.samplers.KSAMPLER_NAMES)
     original_names = set(comfy.samplers.SAMPLER_NAMES)

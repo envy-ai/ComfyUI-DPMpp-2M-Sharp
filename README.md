@@ -24,7 +24,7 @@ For a manual install, run this from your ComfyUI directory:
 git clone https://github.com/envy-ai/ComfyUI-DPMpp-2M-Sharp custom_nodes/ComfyUI-DPMpp-2M-Sharp
 ```
 
-Restart ComfyUI after installation. The package uses ComfyUI's V3 node API and its existing PyTorch and tqdm dependencies. The DPM++ and SEEDS_2 choices need no additional packages or core modifications. The RES choices require the matching local RES4LYF update that registers these four sampler functions; an ordinary upstream RES4LYF install does not currently include them.
+Restart ComfyUI after installation. The package uses ComfyUI's V3 node API and its existing PyTorch and tqdm dependencies. All sampler choices work without additional node packs or core modifications. The default RES 2S/2M implementation is bundled here; RES4LYF is not required.
 
 ## Use
 
@@ -39,8 +39,14 @@ For manual SEEDS_2 controls, add **Sampler SEEDS_2 Sharp** and connect its `SAMP
 
 Use SamplerCustomAdvanced's `output` for NC comparisons; `denoised_output` comes from the preview prediction rather than the returned NC latent.
 
-The node ID remains `SamplerDPMPP_2M_Sharp`. Existing workflows default to `dpmpp_2m_sharp`. This package exposes sampler provider nodes and adds `dpmpp_2m_sde_gpu_sharp` and `seeds_2_sharp` to the standard KSampler dropdown with native sampler defaults and `sharpness = 0.15`. The matching RES4LYF update also adds its four RES choices to the standard KSampler dropdown, where Sharp variants use `sharpness = 0.15`.
+The node ID remains `SamplerDPMPP_2M_Sharp`. Existing workflows default to `dpmpp_2m_sharp`. This package exposes sampler provider nodes and adds `dpmpp_2m_sde_gpu_sharp`, `seeds_2_sharp`, and all four RES choices to the standard KSampler dropdown. Sharp variants use `sharpness = 0.15`. RES retains the original default noise strength of `0.5` for both steps and intermediate stages.
+
+## Tests
+
+From the ComfyUI directory, run `python -m pytest --import-mode=importlib custom_nodes/ComfyUI-DPMpp-2M-Sharp/tests`. Tests cover standalone RES loading and execution, sampler registration, seeded noise, and zero-sharpness behavior. Optional comparisons against the locally updated RES4LYF pack check its original sampling paths across EPS/flow models and several schedules; these comparisons skip when that pack is absent.
 
 ## License and credits
 
-GPL-3.0; see [LICENSE](LICENSE). The samplers are adapted from [ComfyUI's DPM++ 2M and SEEDS_2 implementations](https://github.com/Comfy-Org/ComfyUI/blob/master/comfy/k_diffusion/sampling.py), based on [k-diffusion](https://github.com/crowsonkb/k-diffusion). SEEDS is described in [Stochastic Exponential Integrators for Diffusion Models](https://arxiv.org/abs/2305.14267). The k-diffusion MIT notice is included in [LICENSE.k-diffusion](LICENSE.k-diffusion).
+The DPM++ and SEEDS_2 modifications are GPL-3.0; see [LICENSE](LICENSE). They are adapted from [ComfyUI's DPM++ 2M and SEEDS_2 implementations](https://github.com/Comfy-Org/ComfyUI/blob/master/comfy/k_diffusion/sampling.py), based on [k-diffusion](https://github.com/crowsonkb/k-diffusion). SEEDS is described in [Stochastic Exponential Integrators for Diffusion Models](https://arxiv.org/abs/2305.14267). The k-diffusion MIT notice is included in [LICENSE.k-diffusion](LICENSE.k-diffusion).
+
+The bundled RES implementation in [res.py](res.py) is adapted from the default beta sampler paths in [RES4LYF](https://github.com/ClownsharkBatwing/RES4LYF), including the locally added NC/Sharp variants. Its upstream license is preserved in [LICENSE.RES4LYF](LICENSE.RES4LYF): AGPL-3.0 with an additional restriction on commercial services. The rest of RES4LYF's samplers, guides, and options are not bundled.

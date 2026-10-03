@@ -1,6 +1,7 @@
 import importlib.util
 from pathlib import Path
 import types
+import sys
 
 import pytest
 import torch
@@ -16,6 +17,7 @@ def sampler_pack():
     comfy.cli_args.args.cpu = True
     spec = importlib.util.spec_from_file_location("dpmpp_2m_sharp_nodes", ROOT / "__init__.py")
     module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -231,8 +233,8 @@ def test_provider_selects_both_samplers_and_keeps_sharpness_option(sampler_pack,
         "sample_res_2s_nc", "sample_res_2m_nc", "sample_res_2s_nc_sharp",
         "sample_res_2m_nc_sharp",
     ):
-        function = lambda *args, **kwargs: None
-        monkeypatch.setattr(k_sampling, name, function, raising=False)
+        function = getattr(sampler_pack, name)
+        monkeypatch.setattr(k_sampling, name, None, raising=False)
         res_functions[name.removeprefix("sample_")] = function
 
     for sampler_name, function in (

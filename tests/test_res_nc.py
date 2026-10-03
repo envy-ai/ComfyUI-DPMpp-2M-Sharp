@@ -1,6 +1,9 @@
 from pathlib import Path
 import sys
+import importlib.util
 import types
+import subprocess
+import textwrap
 
 import pytest
 import torch
@@ -15,22 +18,12 @@ def res_sampler():
     import comfy.cli_args
 
     comfy.cli_args.args.cpu = True
-    sys.path.insert(0, str(CUSTOM_NODES))
-    import server
-
-    class Routes:
-        def post(self, path):
-            return lambda function: function
-
-        def get(self, path):
-            return lambda function: function
-
-    missing = object()
-    previous_instance = getattr(server.PromptServer, "instance", missing)
-    server.PromptServer.instance = types.SimpleNamespace(routes=Routes(), client_id=None, supports=set())
-    import RES4LYF
-    import comfy.k_diffusion.sampling as k_sampling
     import comfy.model_sampling
+
+    spec = importlib.util.spec_from_file_location("sharp_res_nodes", ROOT / "__init__.py")
+    pack = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = pack
+    spec.loader.exec_module(pack)
 
     class DiffusionModel:
         double_stream_blocks = []
@@ -58,7 +51,7 @@ def res_sampler():
                 model_sampling=self.model_sampling,
                 diffusion_model=self.diffusion_model,
             )
-            patcher = types.SimpleNamespace(model=types.SimpleNamespace(diffusion_model=self.diffusion_model))
+            patcher = types.SimpleNamespace(model=types.SimpleNamespace(diffusion_model=self.diffusion_model), get_model_object=lambda name: self.model_sampling)
             wrapper = types.SimpleNamespace(inner_model=core, model_patcher=patcher, cfg=1.0)
             self.inner_model = wrapper
             self.outputs = []
@@ -72,15 +65,37 @@ def res_sampler():
             return result
 
     yield types.SimpleNamespace(
-        module=RES4LYF,
-        sampling=k_sampling,
+        pack=pack,
         Model=Model,
     )
-    if previous_instance is missing:
-        del server.PromptServer.instance
-    else:
-        server.PromptServer.instance = previous_instance
-    sys.path.remove(str(CUSTOM_NODES))
+
+
+@pytest.fixture(scope="module")
+def reference():
+    if not (CUSTOM_NODES / "RES4LYF").is_dir():
+        pytest.skip("Optional RES4LYF comparison requires the original node pack")
+    import server
+
+    class Routes:
+        def post(self, path):
+            return lambda function: function
+
+        def get(self, path):
+            return lambda function: function
+
+    missing = object()
+    previous_instance = getattr(server.PromptServer, "instance", missing)
+    server.PromptServer.instance = types.SimpleNamespace(routes=Routes(), client_id=None, supports=set())
+    sys.path.insert(0, str(CUSTOM_NODES))
+    try:
+        from RES4LYF import beta
+        yield beta
+    finally:
+        sys.path.remove(str(CUSTOM_NODES))
+        if previous_instance is missing:
+            del server.PromptServer.instance
+        else:
+            server.PromptServer.instance = previous_instance
 
 
 def run_sampler(function, model, x, sigmas, *, seed=719, callback=None, **kwargs):
@@ -108,10 +123,9 @@ def record_callbacks(events):
 
 @pytest.mark.parametrize("kind", ["2s", "2m"])
 @pytest.mark.parametrize("model_type", ["eps", "flow"])
-def test_nc_skips_only_terminal_clean_latent_correction(res_sampler, kind, model_type):
-    sampling = res_sampler.sampling
-    baseline_fn = getattr(sampling, f"sample_res_{kind}")
-    nc_fn = getattr(sampling, f"sample_res_{kind}_nc")
+def test_nc_skips_only_terminal_clean_latent_correction(res_sampler, reference, kind, model_type):
+    baseline_fn = getattr(reference, f"sample_res_{kind}")
+    nc_fn = getattr(res_sampler.pack, f"sample_res_{kind}_nc")
     sigmas = torch.tensor([1.0, 0.58, 0.29, 0.0])
     initial = torch.linspace(-0.6, 0.8, 24).reshape(1, 2, 3, 4)
     baseline = res_sampler.Model(model_type)
@@ -146,9 +160,8 @@ def test_nc_skips_only_terminal_clean_latent_correction(res_sampler, kind, model
 @pytest.mark.parametrize("kind", ["2s", "2m"])
 @pytest.mark.parametrize("model_type", ["eps", "flow"])
 def test_sharp_nc_zero_matches_nc_and_sharp_preserves_first_prediction(res_sampler, kind, model_type):
-    sampling = res_sampler.sampling
-    nc_fn = getattr(sampling, f"sample_res_{kind}_nc")
-    sharp_fn = getattr(sampling, f"sample_res_{kind}_nc_sharp")
+    nc_fn = getattr(res_sampler.pack, f"sample_res_{kind}_nc")
+    sharp_fn = getattr(res_sampler.pack, f"sample_res_{kind}_nc_sharp")
     sigmas = torch.tensor([1.0, 0.62, 0.36, 0.17, 0.0])
     initial = torch.linspace(-0.7, 0.9, 24).reshape(1, 2, 3, 4)
     plain_model, zero_model, sharp_model = (res_sampler.Model(model_type) for _ in range(3))
@@ -172,38 +185,97 @@ def test_sharp_nc_zero_matches_nc_and_sharp_preserves_first_prediction(res_sampl
 
 
 @pytest.mark.parametrize("kind", ["2s", "2m"])
-@pytest.mark.parametrize("terminal_zero", [False, True])
-def test_sharp_nc_partial_run_keeps_original_solver_result(res_sampler, kind, terminal_zero):
-    from RES4LYF.beta.rk_sampler_beta import sample_rk_beta
+@pytest.mark.parametrize("model_type", ["eps", "flow"])
+@pytest.mark.parametrize("sharpness", [None, 0.0, 0.8])
+@pytest.mark.parametrize("schedule", [
+    [1.0, 0.62, 0.36, 0.17, 0.08, 0.0],
+    [0.95, 0.78, 0.65, 0.54, 0.44, 0.35, 0.28, 0.22, 0.17, 0.13, 0.095, 0.07, 0.05, 0.03, 0.02, 0.012, 0.0],
+    [1.0, 0.5, 0.2],
+    [1.0, 0.8, 0.8, 0.45, 0.05, 0.0],
+    [1.0, 0.62, 0.29, 0.005, 0.0],
+    [1.0, 0.03, 0.005, 0.0],
+    [1.0, 0.0],
+    [0.0, 0.01, 0.03, 0.2, 0.5, 1.0, 0.0],
+])
+def test_bundled_res_matches_installed_res4lyf(res_sampler, reference, kind, model_type, sharpness, schedule):
+    name = f"sample_res_{kind}_nc" + ("_sharp" if sharpness is not None else "")
+    initial = torch.linspace(-0.6, 0.8, 24).reshape(1, 2, 3, 4)
+    sigmas = torch.tensor(schedule)
+    original_model, bundled_model = (res_sampler.Model(model_type) for _ in range(2))
+    old_events, new_events = [], []
+    kwargs = {} if sharpness is None else {"sharpness": sharpness}
+    expected = run_sampler(getattr(reference, name), original_model, initial.clone(), sigmas, callback=record_callbacks(old_events), **kwargs)
+    result = run_sampler(getattr(res_sampler.pack, name), bundled_model, initial.clone(), sigmas, callback=record_callbacks(new_events), **kwargs)
+    assert len(original_model.calls) == len(bundled_model.calls)
+    torch.testing.assert_close(result, expected, rtol=1e-6, atol=1e-7)
+    for actual, expected_call in zip(bundled_model.calls, original_model.calls):
+        for a, b in zip(actual, expected_call):
+            torch.testing.assert_close(a, b, rtol=1e-6, atol=1e-7)
+    assert len(new_events) == len(old_events)
+    for a, b in zip(new_events, old_events):
+        assert a["i"] == b["i"]
+        torch.testing.assert_close(a["denoised"], b["denoised"], rtol=1e-6, atol=1e-7)
 
-    model_a, model_b = res_sampler.Model(), res_sampler.Model()
-    initial = torch.linspace(-0.4, 0.7, 24).reshape(1, 2, 3, 4)
-    sigmas = torch.tensor([1.0, 0.5, 0.2, 0.0]) if terminal_zero else torch.tensor([1.0, 0.5, 0.2])
-    events_a, events_b = [], []
-    original = run_sampler(
-        lambda *args, **kwargs: sample_rk_beta(
-            *args, rk_type=f"res_{kind}", steps_to_run=1, **kwargs
-        ),
-        model_a,
-        initial.clone(),
-        sigmas,
-        callback=record_callbacks(events_a),
-    )
-    sharp = run_sampler(
-        lambda *args, **kwargs: sample_rk_beta(
-            *args, rk_type=f"res_{kind}", steps_to_run=1,
-            extra_options="disable_final_correction\nres_history_sharpness=0.8", **kwargs
-        ),
-        model_b,
-        initial.clone(),
-        sigmas,
-        callback=record_callbacks(events_b),
-    )
-    torch.testing.assert_close(sharp, original, rtol=0, atol=0)
-    assert len(events_a) == len(events_b)
-    assert len(model_a.outputs) == len(model_b.outputs)
-    for event_a, event_b in zip(events_a, events_b):
-        torch.testing.assert_close(event_a["denoised"], event_b["denoised"], rtol=0, atol=0)
-    for call_a, call_b in zip(model_a.calls, model_b.calls):
-        for tensor_a, tensor_b in zip(call_a, call_b):
-            torch.testing.assert_close(tensor_a, tensor_b, rtol=0, atol=0)
+
+@pytest.mark.parametrize("kind", ["2s", "2m"])
+@pytest.mark.parametrize("model_type", ["eps", "flow"])
+def test_bundled_res_seed_repeatability_and_input_preservation(res_sampler, kind, model_type):
+    function = getattr(res_sampler.pack, f"sample_res_{kind}_nc_sharp")
+    initial = torch.linspace(-0.6, 0.8, 48).reshape(1, 2, 2, 3, 4)
+    sigmas = torch.tensor([1.0, 0.62, 0.36, 0.17, 0.0])
+    original_x, original_sigmas = initial.clone(), sigmas.clone()
+    model = res_sampler.Model(model_type)
+    args = {"seed": 719, "model_options": {"transformer_options": {"marker": "unchanged"}}}
+    def run(seed):
+        torch.manual_seed(seed)
+        return function(model, initial, sigmas, extra_args=args, disable=True)
+    first, second, changed = run(719), run(719), run(720)
+    torch.testing.assert_close(first, second, rtol=0, atol=0)
+    assert not torch.equal(first, changed)
+    assert torch.isfinite(first).all()
+    assert all(call[0].dtype == torch.float32 for call in model.calls)
+    torch.testing.assert_close(initial, original_x, rtol=0, atol=0)
+    torch.testing.assert_close(sigmas, original_sigmas, rtol=0, atol=0)
+    assert args == {"seed": 719, "model_options": {"transformer_options": {"marker": "unchanged"}}}
+
+
+def test_res_loads_registers_and_runs_without_res4lyf():
+    script = textwrap.dedent("""
+        import asyncio
+        import importlib.abc
+        import importlib.util
+        import sys
+        import types
+        import torch
+        import comfy.cli_args
+        comfy.cli_args.args.cpu = True
+
+        class BlockRES4LYF(importlib.abc.MetaPathFinder):
+            def find_spec(self, fullname, path=None, target=None):
+                if 'RES4LYF' in fullname:
+                    raise ImportError('RES4LYF is intentionally unavailable')
+        sys.meta_path.insert(0, BlockRES4LYF())
+        spec = importlib.util.spec_from_file_location('standalone_sharp', sys.argv[1])
+        pack = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = pack
+        spec.loader.exec_module(pack)
+        import comfy.model_sampling
+        import comfy.samplers
+        class Flow(comfy.model_sampling.ModelSamplingDiscreteFlow, comfy.model_sampling.CONST):
+            pass
+        class Model:
+            def __init__(self):
+                self.inner_model = types.SimpleNamespace(model_patcher=types.SimpleNamespace(get_model_object=lambda name: Flow()))
+            def __call__(self, x, sigma, **kwargs):
+                return 0.2 * x + 0.08
+        asyncio.run(pack.DPMPP2MSharpExtension().on_load())
+        for name in ('res_2s_nc', 'res_2m_nc', 'res_2s_nc_sharp', 'res_2m_nc_sharp'):
+            provider = pack.SamplerDPMPP_2M_Sharp.execute(0.15, name).result[0]
+            standard = comfy.samplers.sampler_object(name)
+            assert standard.sampler_function is provider.sampler_function
+            output = provider.sampler_function(Model(), torch.arange(24).reshape(1, 2, 3, 4).float() / 24, torch.tensor([1., .6, .3, 0.]), disable=True, **provider.extra_options)
+            assert output.shape == (1, 2, 3, 4) and torch.isfinite(output).all()
+        assert not any('RES4LYF' in name for name in sys.modules)
+    """)
+    result = subprocess.run([sys.executable, "-c", script, str(ROOT / "__init__.py")], capture_output=True, text=True)
+    assert result.returncode == 0, result.stdout + result.stderr
