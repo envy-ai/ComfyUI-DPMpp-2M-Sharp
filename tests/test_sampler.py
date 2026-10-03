@@ -223,20 +223,39 @@ def test_seeded_brownian_noise_is_repeatable_and_matches_cpu_tree_on_cpu(sampler
     torch.testing.assert_close(gpu_variant, native_cpu_tree, rtol=0, atol=0)
 
 
-def test_provider_selects_both_samplers_and_keeps_sharpness_option(sampler_pack):
+def test_provider_selects_both_samplers_and_keeps_sharpness_option(sampler_pack, monkeypatch):
+    import comfy.k_diffusion.sampling as k_sampling
+
+    res_functions = {}
+    for name in (
+        "sample_res_2s_nc", "sample_res_2m_nc", "sample_res_2s_nc_sharp",
+        "sample_res_2m_nc_sharp",
+    ):
+        function = lambda *args, **kwargs: None
+        monkeypatch.setattr(k_sampling, name, function, raising=False)
+        res_functions[name.removeprefix("sample_")] = function
+
     for sampler_name, function in (
         ("dpmpp_2m_sharp", sampler_pack.sample_dpmpp_2m_sharp),
         ("dpmpp_2m_sde_gpu_sharp", sampler_pack.sample_dpmpp_2m_sde_gpu_sharp),
+        ("res_2s_nc", res_functions["res_2s_nc"]),
+        ("res_2m_nc", res_functions["res_2m_nc"]),
+        ("res_2s_nc_sharp", res_functions["res_2s_nc_sharp"]),
+        ("res_2m_nc_sharp", res_functions["res_2m_nc_sharp"]),
+        ("seeds_2_sharp", sampler_pack.sample_seeds_2_sharp),
     ):
         sampler = sampler_pack.SamplerDPMPP_2M_Sharp.execute(0.375, sampler_name).result[0]
         assert sampler.sampler_function is function
-        assert sampler.extra_options == {"sharpness": 0.375}
+        assert sampler.extra_options == ({"sharpness": 0.375} if sampler_name.endswith("_sharp") else {})
 
     schema = sampler_pack.SamplerDPMPP_2M_Sharp.define_schema()
     assert schema.node_id == "SamplerDPMPP_2M_Sharp"
     assert [input.id for input in schema.inputs] == ["sharpness", "sampler_name"]
     selector = next(input for input in schema.inputs if input.id == "sampler_name")
-    assert selector.options == ["dpmpp_2m_sharp", "dpmpp_2m_sde_gpu_sharp"]
+    assert selector.options == [
+        "dpmpp_2m_sharp", "dpmpp_2m_sde_gpu_sharp", "res_2s_nc", "res_2m_nc",
+        "res_2s_nc_sharp", "res_2m_nc_sharp", "seeds_2_sharp",
+    ]
     assert selector.default == "dpmpp_2m_sharp"
 
     default_sampler = sampler_pack.SamplerDPMPP_2M_Sharp.execute(0.375).result[0]
