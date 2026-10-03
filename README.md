@@ -4,6 +4,8 @@ A better sampler for **Qwen Image 2.1**, with adjustable sharpening of the denoi
 
 The sampler progressively scales the previous denoised prediction before the next multistep update. It preserves the original DPM++ 2M step count and model-call count. Results depend on the prompt, model, and settings; this repository does not include a comparative benchmark.
 
+The same history adjustment is also available as **DPM++ 2M SDE GPU Sharp**, preserving ComfyUI's SDE update and seeded GPU Brownian noise. Its image quality has not been comparatively tested.
+
 ## Install
 
 Search for **DPM++ 2M Sharp for Qwen Image 2.1** in ComfyUI Manager, or install from the registry:
@@ -23,11 +25,11 @@ Restart ComfyUI after installation. The package uses ComfyUI's V3 node API and i
 ## Use
 
 1. Add **Sampler DPM++ 2M Sharp** from `model/sampling/samplers`.
-2. Connect its `SAMPLER` output to **SamplerCustom** or **SamplerCustomAdvanced**.
-3. Use your existing model, conditioning, noise, latent, and sigma schedule.
-4. Start with `sharpness = 0.15`. Set it to `0.0` for ordinary DPM++ 2M behavior. Larger values strengthen the history adjustment and may introduce artifacts.
+2. Select `dpmpp_2m_sharp` or `dpmpp_2m_sde_gpu_sharp` using `sampler_name`.
+3. Connect its `SAMPLER` output to **SamplerCustom** or **SamplerCustomAdvanced**, using your existing model, conditioning, noise, latent, and sigma schedule.
+4. Start with `sharpness = 0.15`. Set it to `0.0` to disable the history adjustment; the SDE variant then matches ordinary DPM++ 2M SDE GPU. Larger values strengthen the history adjustment and may introduce artifacts.
 
-The node ID is `SamplerDPMPP_2M_Sharp`, matching the original local node. This package exposes a sampler node; it does not add an entry to the standard KSampler dropdown.
+The node ID remains `SamplerDPMPP_2M_Sharp`. Existing workflows default to `dpmpp_2m_sharp`. This package exposes a sampler provider node; it does not add entries to the standard KSampler dropdown.
 
 ## License and credits
 
