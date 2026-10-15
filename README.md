@@ -43,7 +43,7 @@ Use SamplerCustomAdvanced's `output` for NC comparisons; `denoised_output` comes
 
 The node ID remains `SamplerDPMPP_2M_Sharp`. Existing workflows default to `dpmpp_2m_sharp`. This package exposes sampler provider nodes and adds `dpmpp_2m_sde_gpu_sharp`, all four research `_fixed` choices, `seeds_2_sharp`, and all four RES choices to the standard KSampler dropdown. Sharp variants use `sharpness = 0.15`. RES retains the original default noise strength of `0.5` for both steps and intermediate stages.
 
-The research choices were formerly named `research_dpmpp_2m`, `research_dpmpp_2m_sharp`, `research_dpmpp_2m_sde_gpu_sharp`, and `research_dpmpp_3m_sde_gpu_sharp` in research-unipc-dpmpp. Update that pack as well and select the corresponding `_fixed` name above in existing workflows. The old names are no longer registered.
+The research choices were formerly named `research_dpmpp_2m`, `research_dpmpp_2m_sharp`, `research_dpmpp_2m_sde_gpu_sharp`, and `research_dpmpp_3m_sde_gpu_sharp` in research-unipc-dpmpp. An updated research-unipc-dpmpp registers those old names as runtime aliases to this pack's corresponding `_fixed` samplers, preserving existing workflows when both packs are installed. Either pack can load first. This pack remains independent and does not require research-unipc-dpmpp.
 
 ## Tests
 

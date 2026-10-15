@@ -1,6 +1,6 @@
 [project]
 name = "dpmpp-2m-sharp"
-version = "1.1.0"
+version = "1.2.0"
 description = "A better sampler for Qwen Image 2.1: DPM++ 2M with adjustable denoised-history sharpening."
 readme = "README.md"
 requires-python = ">=3.10"

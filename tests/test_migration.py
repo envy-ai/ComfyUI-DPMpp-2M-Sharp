@@ -18,6 +18,12 @@ MIGRATED_NAMES = (
     "dpmpp_2m_sde_gpu_sharp_fixed",
     "dpmpp_3m_sde_gpu_sharp_fixed",
 )
+RESEARCH_ALIASES = dict(zip((
+    "research_dpmpp_2m",
+    "research_dpmpp_2m_sharp",
+    "research_dpmpp_2m_sde_gpu_sharp",
+    "research_dpmpp_3m_sde_gpu_sharp",
+), MIGRATED_NAMES))
 
 
 def load_package(path, prefix):
@@ -224,12 +230,30 @@ def test_migrated_and_research_packs_load_in_either_order():
                 assert comfy.samplers.SAMPLER_NAMES.count(name) == 1
                 assert comfy.samplers.KSAMPLER_NAMES.count(name) == 1
             assert len(set(MIGRATED_NAMES)) == len(MIGRATED_NAMES)
-            assert not any(old in comfy.samplers.SAMPLER_NAMES for old in (
-                "research_dpmpp_2m",
-                "research_dpmpp_2m_sharp",
-                "research_dpmpp_2m_sde_gpu_sharp",
-                "research_dpmpp_3m_sde_gpu_sharp",
-            ))
+            for old, target in RESEARCH_ALIASES.items():
+                assert comfy.samplers.SAMPLER_NAMES.count(old) == 1
+                alias_sampler = comfy.samplers.ksampler(old).sampler_function
+                target_sampler = comfy.samplers.ksampler(target).sampler_function
+                sigmas = torch.tensor([1.5, 0.83, 0.46, 0.24, 0.11, 0.0])
+                initial = torch.linspace(-0.7, 0.9, 24).reshape(1, 2, 3, 4)
+                actual_callbacks, expected_callbacks = [], []
+                alias_noise, target_noise = FixedNoise(), FixedNoise()
+                denoiser = lambda x, sigma, **kwargs: x * 0.21 + 0.08
+                actual = alias_sampler(
+                    denoiser, initial.clone(), sigmas, {"seed": 42},
+                    actual_callbacks.append, True, noise_sampler=alias_noise,
+                )
+                expected = target_sampler(
+                    denoiser, initial.clone(), sigmas, {"seed": 42},
+                    expected_callbacks.append, True, noise_sampler=target_noise,
+                )
+                torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+                assert alias_noise.calls == target_noise.calls
+                assert len(actual_callbacks) == len(expected_callbacks)
+                for actual_step, expected_step in zip(actual_callbacks, expected_callbacks):
+                    assert actual_step.keys() == expected_step.keys()
+                    for key in actual_step:
+                        torch.testing.assert_close(actual_step[key], expected_step[key], rtol=0, atol=0)
         finally:
             for attr in sampler_attrs(sampling) - attrs_before:
                 if hasattr(sampling, attr):
@@ -238,3 +262,39 @@ def test_migrated_and_research_packs_load_in_either_order():
             comfy.samplers.KSAMPLER_NAMES[:] = ksampler_names_before
             for name in loaded:
                 unload_package(name)
+
+
+def test_research_aliases_resolve_at_call_time_and_forward_arguments(monkeypatch):
+    import comfy.cli_args
+    import comfy.k_diffusion.sampling as sampling
+    import comfy.samplers
+
+    comfy.cli_args.args.cpu = True
+    research_path = CUSTOM_NODES / "research-unipc-dpmpp"
+    if not (research_path / "sampling_ext.py").exists():
+        pytest.skip("Optional alias comparison requires the research sampler pack")
+    names_before = list(comfy.samplers.SAMPLER_NAMES)
+    attrs_before = sampler_attrs(sampling)
+    research_name, research = load_package(research_path, "sharp_alias_dispatch")
+    try:
+        for old, target in RESEARCH_ALIASES.items():
+            alias = research.SAMPLER_FUNCS[old]
+            attr = f"sample_{target}"
+            with monkeypatch.context() as registry:
+                registry.delattr(sampling, attr, raising=False)
+                with pytest.raises(RuntimeError, match="requires ComfyUI-DPMpp-2M-Sharp"):
+                    alias(None, None, None)
+                for result in (object(), object()):
+                    with patch.object(sampling, attr, create=True, return_value=result) as function:
+                        args = (object(), object(), object(), {"seed": 42}, object(), True)
+                        kwargs = dict(eta=0.5, s_noise=0.75, noise_sampler=object(), sharpness=0.3)
+                        assert alias(*args, **kwargs) is result
+                        function.assert_called_once_with(*args, **kwargs)
+                        function.reset_mock()
+                        assert alias(*args[:3]) is result
+                        function.assert_called_once_with(*args[:3])
+    finally:
+        for attr in sampler_attrs(sampling) - attrs_before:
+            delattr(sampling, attr)
+        comfy.samplers.SAMPLER_NAMES[:] = names_before
+        unload_package(research_name)
