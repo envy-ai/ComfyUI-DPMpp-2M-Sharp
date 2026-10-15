@@ -1,10 +1,10 @@
 [project]
 name = "dpmpp-2m-sharp"
-version = "1.2.0"
+version = "1.3.0"
 description = "A better sampler for Qwen Image 2.1: DPM++ 2M with adjustable denoised-history sharpening."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "GPL-3.0 for DPM++/SEEDS modifications; research samplers: MIT (see LICENSE.research-unipc-dpmpp); bundled RES: AGPL-3.0 with a commercial-service restriction (see LICENSE.RES4LYF)." }
+license = { text = "GPL-3.0 for DPM++/SEEDS modifications; research samplers and quadratic schedulers: MIT (see LICENSE.research-unipc-dpmpp and LICENSE.Quadratic-Schedulers); bundled RES: AGPL-3.0 with a commercial-service restriction (see LICENSE.RES4LYF)." }
 dependencies = []
 classifiers = ["Operating System :: OS Independent"]
 

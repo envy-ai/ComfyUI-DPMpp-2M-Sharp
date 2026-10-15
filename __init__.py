@@ -9,6 +9,7 @@ from tqdm.auto import trange
 
 from .res import sample_res_2s_nc, sample_res_2m_nc, sample_res_2s_nc_sharp, sample_res_2m_nc_sharp
 from .fixed import sample_dpmpp_2m_fixed, sample_dpmpp_2m_sharp_fixed, sample_dpmpp_2m_sde_gpu_sharp_fixed, sample_dpmpp_3m_sde_gpu_sharp_fixed
+from .schedulers import CURVES, quadratic_scheduler
 
 
 def sample_dpmpp_2m_sharp(model, x, sigmas, extra_args=None, callback=None, disable=None, sharpness=0.15):
@@ -223,6 +224,12 @@ class SamplerSEEDS2Sharp(io.ComfyNode):
 
 class DPMPP2MSharpExtension(ComfyExtension):
     async def on_load(self):
+        for name, anchors in CURVES.items():
+            if name not in comfy.samplers.SCHEDULER_HANDLERS:
+                comfy.samplers.SCHEDULER_HANDLERS[name] = comfy.samplers.SchedulerHandler(partial(quadratic_scheduler, anchors=anchors))
+            if name not in comfy.samplers.SCHEDULER_NAMES:
+                comfy.samplers.SCHEDULER_NAMES.append(name)
+
         for name, function in (
             ("dpmpp_2m_sde_gpu_sharp", sample_dpmpp_2m_sde_gpu_sharp),
             ("dpmpp_2m_fixed", sample_dpmpp_2m_fixed),

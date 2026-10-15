@@ -26,7 +26,7 @@ For a manual install, run this from your ComfyUI directory:
 git clone https://github.com/envy-ai/ComfyUI-DPMpp-2M-Sharp custom_nodes/ComfyUI-DPMpp-2M-Sharp
 ```
 
-Restart ComfyUI after installation. The package uses ComfyUI's V3 node API and its existing PyTorch, NumPy, and tqdm dependencies. All sampler choices work without additional node packs or core modifications. The default RES 2S/2M and research 2M/3M implementations are bundled here; RES4LYF and research-unipc-dpmpp are not required.
+Restart ComfyUI after installation. The package uses ComfyUI's V3 node API and its existing PyTorch, NumPy, and tqdm dependencies. All sampler and scheduler choices work without additional node packs or core modifications. The default RES 2S/2M, research 2M/3M, and Qwen quadratic scheduler implementations are bundled here; RES4LYF, research-unipc-dpmpp, and ComfyUI-Quadratic-Schedulers are not required.
 
 ## Use
 
@@ -45,9 +45,22 @@ The node ID remains `SamplerDPMPP_2M_Sharp`. Existing workflows default to `dpmp
 
 The research choices were formerly named `research_dpmpp_2m`, `research_dpmpp_2m_sharp`, `research_dpmpp_2m_sde_gpu_sharp`, and `research_dpmpp_3m_sde_gpu_sharp` in research-unipc-dpmpp. An updated research-unipc-dpmpp registers those old names as runtime aliases to this pack's corresponding `_fixed` samplers, preserving existing workflows when both packs are installed. Either pack can load first. This pack remains independent and does not require research-unipc-dpmpp.
 
+## Schedulers
+
+Select `qwen_21_turbo_custom` or `qwen_21_turbo` in the standard KSampler scheduler dropdown and set **steps** normally; no additional nodes are needed.
+
+| Scheduler | Eight-step sigmas |
+| --- | --- |
+| `qwen_21_turbo_custom` | `0.9786, 0.9750, 0.9520, 0.8903, 0.7898, 0.6505, 0.4724, 0.2556, 0` |
+| `qwen_21_turbo` | `1, 0.978453, 0.95418, 0.926626, 0.89508, 0.845148, 0.704534, 0.414568, 0` |
+
+Other step counts sample the same smooth, monotone piecewise quadratic curve at evenly spaced positions. The first slope is zero and adjacent segments share their slope at each anchor. Each schedule contains `steps + 1` CPU float32 sigmas, including the final zero. One step uses the first sigma followed by zero; zero steps returns only zero. These absolute Qwen sigmas are not scaled to the model's sigma range. Partial denoising follows normal KSampler behavior.
+
+The names and schedules are unchanged from ComfyUI-Quadratic-Schedulers. Existing workflows can use this pack alone; keeping both packs installed does not duplicate scheduler choices.
+
 ## Tests
 
-From the ComfyUI directory, run `python -m pytest --import-mode=importlib custom_nodes/ComfyUI-DPMpp-2M-Sharp/tests`. Tests cover standalone RES loading and execution, sampler registration, seeded noise, and zero-sharpness behavior. Optional comparisons against the locally updated RES4LYF pack check its original sampling paths across EPS/flow models and several schedules; these comparisons skip when that pack is absent.
+From the ComfyUI directory, run `python -m pytest --import-mode=importlib custom_nodes/ComfyUI-DPMpp-2M-Sharp/tests`. Tests cover standalone RES loading and execution, sampler and scheduler registration, exact Qwen scheduler values, seeded noise, and zero-sharpness behavior. Optional comparisons against the locally updated RES4LYF pack check its original sampling paths across EPS/flow models and several schedules; these comparisons skip when that pack is absent.
 
 ## License and credits
 
@@ -56,3 +69,5 @@ The DPM++ and SEEDS_2 modifications are GPL-3.0; see [LICENSE](LICENSE). They ar
 The bundled RES implementation in [res.py](res.py) is adapted from the default beta sampler paths in [RES4LYF](https://github.com/ClownsharkBatwing/RES4LYF), including the locally added NC/Sharp variants. Its upstream license is preserved in [LICENSE.RES4LYF](LICENSE.RES4LYF): AGPL-3.0 with an additional restriction on commercial services. The rest of RES4LYF's samplers, guides, and options are not bundled.
 
 The research 2M/3M implementation in [fixed.py](fixed.py) is adapted from `sampling_ext.py` and `multistep_math.py` in [research-unipc-dpmpp](https://github.com/YakovSava/research-unipc-dpmpp), copyright (c) 2026 Iakov Savelev. Its MIT notice is preserved in [LICENSE.research-unipc-dpmpp](LICENSE.research-unipc-dpmpp). Unrelated research samplers are not bundled.
+
+The quadratic schedulers in [schedulers.py](schedulers.py) are adapted from ComfyUI-Quadratic-Schedulers, copyright (c) 2026 Bart. Its MIT notice is preserved in [LICENSE.Quadratic-Schedulers](LICENSE.Quadratic-Schedulers).
