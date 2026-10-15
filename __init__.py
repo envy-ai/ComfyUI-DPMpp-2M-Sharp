@@ -8,6 +8,7 @@ from comfy_api.latest import ComfyExtension, io
 from tqdm.auto import trange
 
 from .res import sample_res_2s_nc, sample_res_2m_nc, sample_res_2s_nc_sharp, sample_res_2m_nc_sharp
+from .fixed import sample_dpmpp_2m_fixed, sample_dpmpp_2m_sharp_fixed, sample_dpmpp_2m_sde_gpu_sharp_fixed, sample_dpmpp_3m_sde_gpu_sharp_fixed
 
 
 def sample_dpmpp_2m_sharp(model, x, sigmas, extra_args=None, callback=None, disable=None, sharpness=0.15):
@@ -166,7 +167,7 @@ class SamplerDPMPP_2M_Sharp(io.ComfyNode):
             inputs=[
                 io.Float.Input("sharpness", default=0.15, min=0.0, max=100.0, step=0.01, round=False,
                                tooltip="Progressively scales denoised history, or the first-stage prediction used in RES 2S and SEEDS_2 corrections. 0 disables sharpening. Ignored by samplers without _sharp."),
-                io.Combo.Input("sampler_name", options=["dpmpp_2m_sharp", "dpmpp_2m_sde_gpu_sharp", "res_2s_nc", "res_2m_nc", "res_2s_nc_sharp", "res_2m_nc_sharp", "seeds_2_sharp"], default="dpmpp_2m_sharp", optional=True,
+                io.Combo.Input("sampler_name", options=["dpmpp_2m_sharp", "dpmpp_2m_sde_gpu_sharp", "dpmpp_2m_fixed", "dpmpp_2m_sharp_fixed", "dpmpp_2m_sde_gpu_sharp_fixed", "dpmpp_3m_sde_gpu_sharp_fixed", "res_2s_nc", "res_2m_nc", "res_2s_nc_sharp", "res_2m_nc_sharp", "seeds_2_sharp"], default="dpmpp_2m_sharp", optional=True,
                                tooltip="RES _nc variants skip the final clean-latent correction, retaining a small amount of residual noise."),
             ],
             outputs=[io.Sampler.Output()]
@@ -177,13 +178,17 @@ class SamplerDPMPP_2M_Sharp(io.ComfyNode):
         sampler_function = {
             "dpmpp_2m_sharp": sample_dpmpp_2m_sharp,
             "dpmpp_2m_sde_gpu_sharp": sample_dpmpp_2m_sde_gpu_sharp,
+            "dpmpp_2m_fixed": sample_dpmpp_2m_fixed,
+            "dpmpp_2m_sharp_fixed": sample_dpmpp_2m_sharp_fixed,
+            "dpmpp_2m_sde_gpu_sharp_fixed": sample_dpmpp_2m_sde_gpu_sharp_fixed,
+            "dpmpp_3m_sde_gpu_sharp_fixed": sample_dpmpp_3m_sde_gpu_sharp_fixed,
             "seeds_2_sharp": sample_seeds_2_sharp,
             "res_2s_nc": sample_res_2s_nc,
             "res_2m_nc": sample_res_2m_nc,
             "res_2s_nc_sharp": sample_res_2s_nc_sharp,
             "res_2m_nc_sharp": sample_res_2m_nc_sharp,
         }[sampler_name]
-        extra_options = {"sharpness": sharpness} if sampler_name.endswith("_sharp") else {}
+        extra_options = {"sharpness": sharpness} if sampler_name.endswith(("_sharp", "_sharp_fixed")) else {}
         sampler = comfy.samplers.KSAMPLER(sampler_function, extra_options)
         return io.NodeOutput(sampler)
 
@@ -220,6 +225,10 @@ class DPMPP2MSharpExtension(ComfyExtension):
     async def on_load(self):
         for name, function in (
             ("dpmpp_2m_sde_gpu_sharp", sample_dpmpp_2m_sde_gpu_sharp),
+            ("dpmpp_2m_fixed", sample_dpmpp_2m_fixed),
+            ("dpmpp_2m_sharp_fixed", sample_dpmpp_2m_sharp_fixed),
+            ("dpmpp_2m_sde_gpu_sharp_fixed", sample_dpmpp_2m_sde_gpu_sharp_fixed),
+            ("dpmpp_3m_sde_gpu_sharp_fixed", sample_dpmpp_3m_sde_gpu_sharp_fixed),
             ("seeds_2_sharp", sample_seeds_2_sharp),
             ("res_2s_nc", sample_res_2s_nc),
             ("res_2m_nc", sample_res_2m_nc),

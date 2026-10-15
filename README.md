@@ -6,6 +6,8 @@ The sampler progressively scales the previous denoised prediction before the nex
 
 The same history adjustment is also available as **DPM++ 2M SDE GPU Sharp**, preserving ComfyUI's SDE update and seeded GPU Brownian noise. Its image quality has not been comparatively tested.
 
+The `dpmpp_2m_fixed`, `dpmpp_2m_sharp_fixed`, `dpmpp_2m_sde_gpu_sharp_fixed`, and `dpmpp_3m_sde_gpu_sharp_fixed` choices bundle the corresponding research sampler implementations from research-unipc-dpmpp. They retain its model-aware half-log-SNR handling, noise behavior, and 3M warmup. Both deterministic 2M choices default to `eta = 0` and construct no Brownian noise sampler; `dpmpp_2m_fixed` ignores the provider's sharpness input. These are experimental variants; the `_fixed` names do not imply a comparative image-quality guarantee.
+
 **SEEDS_2 Sharp** applies an analogous adjustment to the difference between its two stage predictions. It leaves the intermediate predictor unscaled and keeps native seeded noise, model-call count, and the final zero-sigma denoising step. At `sharpness = 0.0` it matches native SEEDS_2. This is experimental and has not been comparatively benchmarked.
 
 Experimental RES choices are `res_2s_nc`, `res_2m_nc`, `res_2s_nc_sharp`, and `res_2m_nc_sharp`. All four skip RES4LYF's final clean-latent correction, retaining the latent at the minimum positive sigma with a small amount of residual noise. They keep the minimum-sigma insertion and all positive-sigma model evaluations. RES 2M Sharp scales cached denoised history; RES 2S Sharp scales the first prediction only when combining its two stage predictions, preserving the unscaled intermediate predictor. Their image quality has not been comparatively tested.
@@ -24,12 +26,12 @@ For a manual install, run this from your ComfyUI directory:
 git clone https://github.com/envy-ai/ComfyUI-DPMpp-2M-Sharp custom_nodes/ComfyUI-DPMpp-2M-Sharp
 ```
 
-Restart ComfyUI after installation. The package uses ComfyUI's V3 node API and its existing PyTorch and tqdm dependencies. All sampler choices work without additional node packs or core modifications. The default RES 2S/2M implementation is bundled here; RES4LYF is not required.
+Restart ComfyUI after installation. The package uses ComfyUI's V3 node API and its existing PyTorch, NumPy, and tqdm dependencies. All sampler choices work without additional node packs or core modifications. The default RES 2S/2M and research 2M/3M implementations are bundled here; RES4LYF and research-unipc-dpmpp are not required.
 
 ## Use
 
 1. Add **Sampler DPM++ 2M Sharp** from `model/sampling/samplers`.
-2. Select a DPM++, RES, or SEEDS_2 sampler using `sampler_name`.
+2. Select a DPM++, research `_fixed`, RES, or SEEDS_2 sampler using `sampler_name`.
 3. Connect its `SAMPLER` output to **SamplerCustom** or **SamplerCustomAdvanced**, using your existing model, conditioning, noise, latent, and sigma schedule.
 4. Start with `sharpness = 0.15`. Set it to `0.0` to disable the history adjustment; the SDE variant then matches ordinary DPM++ 2M SDE GPU. Larger values strengthen the history adjustment and may introduce artifacts.
 
@@ -39,7 +41,9 @@ For manual SEEDS_2 controls, add **Sampler SEEDS_2 Sharp** and connect its `SAMP
 
 Use SamplerCustomAdvanced's `output` for NC comparisons; `denoised_output` comes from the preview prediction rather than the returned NC latent.
 
-The node ID remains `SamplerDPMPP_2M_Sharp`. Existing workflows default to `dpmpp_2m_sharp`. This package exposes sampler provider nodes and adds `dpmpp_2m_sde_gpu_sharp`, `seeds_2_sharp`, and all four RES choices to the standard KSampler dropdown. Sharp variants use `sharpness = 0.15`. RES retains the original default noise strength of `0.5` for both steps and intermediate stages.
+The node ID remains `SamplerDPMPP_2M_Sharp`. Existing workflows default to `dpmpp_2m_sharp`. This package exposes sampler provider nodes and adds `dpmpp_2m_sde_gpu_sharp`, all four research `_fixed` choices, `seeds_2_sharp`, and all four RES choices to the standard KSampler dropdown. Sharp variants use `sharpness = 0.15`. RES retains the original default noise strength of `0.5` for both steps and intermediate stages.
+
+The research choices were formerly named `research_dpmpp_2m`, `research_dpmpp_2m_sharp`, `research_dpmpp_2m_sde_gpu_sharp`, and `research_dpmpp_3m_sde_gpu_sharp` in research-unipc-dpmpp. Update that pack as well and select the corresponding `_fixed` name above in existing workflows. The old names are no longer registered.
 
 ## Tests
 
@@ -50,3 +54,5 @@ From the ComfyUI directory, run `python -m pytest --import-mode=importlib custom
 The DPM++ and SEEDS_2 modifications are GPL-3.0; see [LICENSE](LICENSE). They are adapted from [ComfyUI's DPM++ 2M and SEEDS_2 implementations](https://github.com/Comfy-Org/ComfyUI/blob/master/comfy/k_diffusion/sampling.py), based on [k-diffusion](https://github.com/crowsonkb/k-diffusion). SEEDS is described in [Stochastic Exponential Integrators for Diffusion Models](https://arxiv.org/abs/2305.14267). The k-diffusion MIT notice is included in [LICENSE.k-diffusion](LICENSE.k-diffusion).
 
 The bundled RES implementation in [res.py](res.py) is adapted from the default beta sampler paths in [RES4LYF](https://github.com/ClownsharkBatwing/RES4LYF), including the locally added NC/Sharp variants. Its upstream license is preserved in [LICENSE.RES4LYF](LICENSE.RES4LYF): AGPL-3.0 with an additional restriction on commercial services. The rest of RES4LYF's samplers, guides, and options are not bundled.
+
+The research 2M/3M implementation in [fixed.py](fixed.py) is adapted from `sampling_ext.py` and `multistep_math.py` in [research-unipc-dpmpp](https://github.com/YakovSava/research-unipc-dpmpp), copyright (c) 2026 Iakov Savelev. Its MIT notice is preserved in [LICENSE.research-unipc-dpmpp](LICENSE.research-unipc-dpmpp). Unrelated research samplers are not bundled.

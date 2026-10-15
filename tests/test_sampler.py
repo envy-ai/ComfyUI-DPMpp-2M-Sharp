@@ -240,6 +240,10 @@ def test_provider_selects_both_samplers_and_keeps_sharpness_option(sampler_pack,
     for sampler_name, function in (
         ("dpmpp_2m_sharp", sampler_pack.sample_dpmpp_2m_sharp),
         ("dpmpp_2m_sde_gpu_sharp", sampler_pack.sample_dpmpp_2m_sde_gpu_sharp),
+        ("dpmpp_2m_fixed", sampler_pack.sample_dpmpp_2m_fixed),
+        ("dpmpp_2m_sharp_fixed", sampler_pack.sample_dpmpp_2m_sharp_fixed),
+        ("dpmpp_2m_sde_gpu_sharp_fixed", sampler_pack.sample_dpmpp_2m_sde_gpu_sharp_fixed),
+        ("dpmpp_3m_sde_gpu_sharp_fixed", sampler_pack.sample_dpmpp_3m_sde_gpu_sharp_fixed),
         ("res_2s_nc", res_functions["res_2s_nc"]),
         ("res_2m_nc", res_functions["res_2m_nc"]),
         ("res_2s_nc_sharp", res_functions["res_2s_nc_sharp"]),
@@ -248,14 +252,20 @@ def test_provider_selects_both_samplers_and_keeps_sharpness_option(sampler_pack,
     ):
         sampler = sampler_pack.SamplerDPMPP_2M_Sharp.execute(0.375, sampler_name).result[0]
         assert sampler.sampler_function is function
-        assert sampler.extra_options == ({"sharpness": 0.375} if sampler_name.endswith("_sharp") else {})
+        assert sampler.extra_options == (
+            {"sharpness": 0.375}
+            if sampler_name.endswith("_sharp") or "_sharp_fixed" in sampler_name
+            else {}
+        )
 
     schema = sampler_pack.SamplerDPMPP_2M_Sharp.define_schema()
     assert schema.node_id == "SamplerDPMPP_2M_Sharp"
     assert [input.id for input in schema.inputs] == ["sharpness", "sampler_name"]
     selector = next(input for input in schema.inputs if input.id == "sampler_name")
     assert selector.options == [
-        "dpmpp_2m_sharp", "dpmpp_2m_sde_gpu_sharp", "res_2s_nc", "res_2m_nc",
+        "dpmpp_2m_sharp", "dpmpp_2m_sde_gpu_sharp", "dpmpp_2m_fixed",
+        "dpmpp_2m_sharp_fixed", "dpmpp_2m_sde_gpu_sharp_fixed",
+        "dpmpp_3m_sde_gpu_sharp_fixed", "res_2s_nc", "res_2m_nc",
         "res_2s_nc_sharp", "res_2m_nc_sharp", "seeds_2_sharp",
     ]
     assert selector.default == "dpmpp_2m_sharp"
